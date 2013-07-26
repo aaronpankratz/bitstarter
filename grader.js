@@ -22,10 +22,13 @@ References:
 */
 
 var fs = require('fs');
+var sys = require('util'),
+    rest = require('./restler');
 var program = require('commander');
 var cheerio = require('cheerio');
 var HTMLFILE_DEFAULT = "index.html";
 var CHECKSFILE_DEFAULT = "checks.json";
+var URL_DEFAULT = "http://fierce-reaches-1073.herokuapp.com";
 
 var assertFileExists = function(infile) {
     var instr = infile.toString();
@@ -38,6 +41,10 @@ var assertFileExists = function(infile) {
 
 var cheerioHtmlFile = function(htmlfile) {
     return cheerio.load(fs.readFileSync(htmlfile));
+};
+
+var cheerioUrl = function(urlString) {
+    return cheerio.load(urlString);
 };
 
 var loadChecks = function(checksfile) {
@@ -55,6 +62,25 @@ var checkHtmlFile = function(htmlfile, checksfile) {
     return out;
 };
 
+var buildfn = function(fileName, checksfile) {
+    var response2console = function(result, response) {
+	if (result instanceof Error) {
+	    console.error('Error: ' + util.format(response.message));
+	} else {
+	    fs.writeFileSync(fileName, result);
+	    var checkedInput = checkHtmlFile("test.html", checksfile);
+	    var outJson = JSON.stringify(checkedInput, null, 4);
+	    console.log(outJson);
+	}
+    };
+    return response2console;
+};
+
+var checkUrl = function(url, checksfile) {
+    var response2console = buildfn("test.html", checksfile);
+    rest.get(url).on('complete', response2console);
+}
+
 var clone = function(fn) {
     // Workaround for commander.js issue.
     // http://stackoverflow.com/a/6772648
@@ -65,10 +91,18 @@ if(require.main == module) {
     program
 	.option('-c, --checks <check_file>', 'Path to checks.json', clone(assertFileExists), CHECKSFILE_DEFAULT)
 	.option('-f, --file <html_file>', 'Path to index.html', clone(assertFileExists), HTMLFILE_DEFAULT)
+        .option('-u, --url <url_file>', 'Path to url', URL_DEFAULT)
 	.parse(process.argv);
-    var checkJson = checkHtmlFile(program.file, program.checks);
-    var outJson = JSON.stringify(checkJson, null, 4);
-    console.log(outJson);
+    var checkedInput;
+    if(program.url != undefined) {
+	checkUrl(program.url, program.checks);
+    }
+    else {
+	checkedInput = checkHtmlFile(program.file, program.checks);
+	var outJson = JSON.stringify(checkedInput, null, 4);
+	console.log(outJson);
+    }
 } else {
     exports.checkHtmlFile = checkHtmlFile;
 }
+
